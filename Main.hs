@@ -3,16 +3,16 @@
 
 module Main where
 
+import System.Environment
+import Data.Maybe
 import Data.List
 import Data.Char
-import Data.Monoid
 import Control.Monad.RWS
 import qualified Data.Vector as V
 import Control.Lens.Setter
 import Control.Lens.Getter
 import Control.Lens.TH
 import Control.Lens.At
-import Debug.Trace
 
 type Program = String
 type Interpreter = RWST Program () InterpreterState IO ()
@@ -40,15 +40,12 @@ interpreter = do
       case program !! ip of 
         '>' -> dataPointer += 1
         '<' -> dataPointer -= 1
-        '.' ->  do
-          liftIO.putChar . chr $ cls V.! dp
+        '+' -> cells.ix dp += 1
+        '-' -> cells.ix dp -= 1
+        '.' -> liftIO.putChar . chr $ cls V.! dp
         ',' -> do
           val <- ord <$> (liftIO getChar)
           cells.ix dp .= val
-        '+' -> do
-          cells.ix dp += 1
-        '-' -> do
-          cells.ix dp -= 1
         '[' -> do
           if cls V.! dp == 0 then
             instructionPointer .= (head . filter (>ip) . elemIndices ']' $ program)
@@ -67,13 +64,16 @@ interpreter = do
   else
     return ()
 
-main :: IO ()
-main = 
-  let
+runInterpreter program = 
+  let 
     initState = InterpreterState 0 0 (V.replicate 30000 0)
   in 
-    do
-      fileContents <- readFile "Addition.bf"
-      runRWST interpreter fileContents initState
-      return ()
-  
+    runRWST interpreter program initState
+
+main :: IO ()
+main = do 
+  args <- getArgs
+  let filename = fromMaybe "Addition.bf" . listToMaybe $ args 
+  program <- readFile filename
+  runInterpreter program
+  return ()
