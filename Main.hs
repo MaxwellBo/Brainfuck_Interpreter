@@ -49,15 +49,11 @@ interpreter = do
         '[' -> do
           if cls V.! dp == 0 then
             instructionPointer .= (head . filter (>ip) . elemIndices ']' $ program)
-          else
-            return ()
+          else return ()
         ']' -> do
           if cls V.! dp /= 0 then
              instructionPointer .= (last . filter (<ip) . elemIndices '[' $ program)
-          else
-            return ()
-        _ -> do
-          return ()
+          else return ()
 
       instructionPointer += 1
       interpreter
