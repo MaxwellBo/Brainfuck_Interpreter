@@ -9,7 +9,10 @@ import Data.List
 import Data.Char
 import Control.Monad.RWS
 import qualified Data.Vector as V
+import qualified Data.Bimap as B
+import Data.Bimap ((!), (!>))
 import Control.Lens
+import Debug.Trace
 
 type Program = String
 type Interpreter = RWST Program () InterpreterState IO ()
@@ -22,6 +25,18 @@ data InterpreterState
 
 makeClassy ''InterpreterState
 
+type BracketTable = B.Bimap Int Int
+
+makeBracketTable :: Program -> BracketTable
+makeBracketTable program = B.fromList $ go 0 program []
+  where
+    go :: Int -> Program -> [Int] -> [(Int, Int)]
+    go _ []       _         =          [] -- There's no program left to parse
+    go i ('[':xs) stack     =          go (i + 1) xs (i:stack) -- We saw a [, put its position on the stack
+    go i (']':xs) (s:tack)  = (s, i) : go (i + 1) xs tack -- Close the brace pair
+    go i (']':xs) []        = error "Bracket Mismatch"
+    go i (_:xs)   stack     =          go (i + 1) xs stack
+
 interpreter :: Interpreter 
 interpreter = do
   program <- ask 
@@ -32,6 +47,7 @@ interpreter = do
   
   when (ip < length program) $ do
     dp <- use dataPointer
+    bracketTable <- asks makeBracketTable
     Just target <- gets (^? cells.ix dp)
     case program !! ip of 
       '>' -> dataPointer += 1
@@ -44,10 +60,10 @@ interpreter = do
         cells.ix dp .= val
       '[' ->
         when (target == 0) $ do
-          instructionPointer .= (head . filter (>ip) . elemIndices ']' $ program)
+          instructionPointer .= bracketTable ! ip
       ']' -> 
         when (target /= 0) $ do
-          instructionPointer .= (last . filter (<ip) . elemIndices '[' $ program)
+          instructionPointer .= bracketTable !> ip
 
     instructionPointer += 1
     interpreter
@@ -58,10 +74,11 @@ runInterpreter program =
   in 
     runRWST interpreter program initState
 
+
 main :: IO ()
 main = do 
   args <- getArgs
-  let filename = fromMaybe "Addition.bf" . listToMaybe $ args 
+  let filename = fromMaybe "Hello_World.bf" . listToMaybe $ args 
   program <- filter (`elem` "><.,+-[]") <$> readFile filename
   runInterpreter program
   return ()
