@@ -24,7 +24,7 @@ makeClassy ''InterpreterState
 
 interpreter :: Interpreter 
 interpreter = do
-  program <- filter (`elem` "><.,+-[]") <$> ask
+  program <- ask 
   ip <- use instructionPointer
   
   -- liftIO.putStrLn $ program
@@ -62,6 +62,6 @@ main :: IO ()
 main = do 
   args <- getArgs
   let filename = fromMaybe "Addition.bf" . listToMaybe $ args 
-  program <- readFile filename
+  program <- filter (`elem` "><.,+-[]") <$> readFile filename
   runInterpreter program
   return ()
