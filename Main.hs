@@ -9,10 +9,7 @@ import Data.List
 import Data.Char
 import Control.Monad.RWS
 import qualified Data.Vector as V
-import Control.Lens.Setter
-import Control.Lens.Getter
-import Control.Lens.TH
-import Control.Lens.At
+import Control.Lens
 
 type Program = String
 type Interpreter = RWST Program () InterpreterState IO ()
@@ -33,32 +30,27 @@ interpreter = do
   -- liftIO.putStrLn $ program
   -- liftIO.putStrLn $ (replicate ip ' ') ++ "^"
   
-  if ip < (length program) then
-    do
-      dp <- use dataPointer
-      cls <- use cells
-      case program !! ip of 
-        '>' -> dataPointer += 1
-        '<' -> dataPointer -= 1
-        '+' -> cells.ix dp += 1
-        '-' -> cells.ix dp -= 1
-        '.' -> liftIO.putChar . chr $ cls V.! dp
-        ',' -> do
-          val <- ord <$> (liftIO getChar)
-          cells.ix dp .= val
-        '[' -> do
-          if cls V.! dp == 0 then
-            instructionPointer .= (head . filter (>ip) . elemIndices ']' $ program)
-          else return ()
-        ']' -> do
-          if cls V.! dp /= 0 then
-             instructionPointer .= (last . filter (<ip) . elemIndices '[' $ program)
-          else return ()
+  when (ip < length program) $ do
+    dp <- use dataPointer
+    Just target <- gets (^? cells.ix dp)
+    case program !! ip of 
+      '>' -> dataPointer += 1
+      '<' -> dataPointer -= 1
+      '+' -> cells.ix dp += 1
+      '-' -> cells.ix dp -= 1
+      '.' -> liftIO.putChar . chr $ target
+      ',' -> do
+        val <- ord <$> (liftIO getChar)
+        cells.ix dp .= val
+      '[' ->
+        when (target == 0) $ do
+          instructionPointer .= (head . filter (>ip) . elemIndices ']' $ program)
+      ']' -> 
+        when (target /= 0) $ do
+          instructionPointer .= (last . filter (<ip) . elemIndices '[' $ program)
 
-      instructionPointer += 1
-      interpreter
-  else
-    return ()
+    instructionPointer += 1
+    interpreter
 
 runInterpreter program = 
   let 
